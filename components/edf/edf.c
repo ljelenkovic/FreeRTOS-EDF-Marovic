@@ -12,6 +12,7 @@ EDFtask tasksReady[MAX_TASKS];
 EDFtask tasksYield[MAX_TASKS];
 int numTasks = 0;
 
+// Testna funkcija koja printa ready i yield arrayeve
 void edf_print_task_arrays() 
 {
     printf("tasksReady: ");
@@ -25,6 +26,8 @@ void edf_print_task_arrays()
     printf("\n");
 }
 
+// miče task iz yield arraya i stavlja ga u ready array (array sortiran prema globalnom deadlineu)
+// ako je task predan funkciji novi ili ako je prvi u arrayu, probudi scheduler task
 int edf_ready_task(EDFtask task) 
 {
     // if (tasksReady[MAX_TASKS-1].globalDeadline != 0) {
@@ -59,6 +62,7 @@ int edf_ready_task(EDFtask task)
     return 0;
 }
 
+// task se stavlja u yield array i budi scheduler task
 void edf_completed(EDFtask task) 
 {
     // int i;
@@ -82,6 +86,8 @@ void edf_completed(EDFtask task)
     xTaskNotifyGive(scheduler_handle);
 }
 
+// task koji se konstantno vrti (task i parameteri predani kao parametri funkcije)
+// edf_yield je macro za vTaskDelayUntil - zaustavlja task do kraja perioda
 void edf_task(void *pvParameter) 
 {
     EDFtask task = *((EDFtask *) pvParameter);
@@ -98,6 +104,7 @@ void edf_task(void *pvParameter)
     }
 }
 
+// postavlja task koji će se konstantno vrtiti
 TaskHandle_t edf_set(TaskFunction_t task, void *params, size_t param_size, int period, int deadline) 
 {
     if (numTasks == MAX_TASKS) {
@@ -122,6 +129,7 @@ TaskHandle_t edf_set(TaskFunction_t task, void *params, size_t param_size, int p
     return e.handle;
 }
 
+// miče task iz ready arraya
 void edf_unready_task(EDFtask task) 
 {
     int i;
@@ -138,6 +146,7 @@ void edf_unready_task(EDFtask task)
     }
 }
 
+// scheduler - čeka da ga netko pozove pa budi task koji je prvi u ready arrayu i miče ga iz nje
 void edf_scheduler_task(void *pvParameter) 
 {
     
@@ -157,6 +166,7 @@ void edf_scheduler_task(void *pvParameter)
     }
 }
 
+// pokreće scheduler task
 void edf_start_scheduler(void)
 {
     xTaskCreate(edf_scheduler_task, "EDF scheduler", 2048, NULL, configMAX_PRIORITIES-1, &scheduler_handle);
