@@ -16,8 +16,11 @@ static int m = 1000;
 
 void app_main(void)
 {
+    //postavi ovoj dretvi (sam sebi) najveći prioritet PRIO_MAX
+
+    edf_start_scheduler();
+
     edf_set(test, &n, sizeof(n), 10000, 7000);
     edf_set(test, &m, sizeof(m), 8000, 6000);
     vTaskDelay(1000);
-    edf_start_scheduler();
 }

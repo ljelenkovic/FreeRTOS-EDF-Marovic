@@ -16,8 +16,8 @@ int numTasks = 0; //broj taskova u tasksReady
 void edf_print_task_arrays() 
 {
     printf("tasksReady: ");
-    for (int i = 0; i < MAX_TASKS; i++) {
-        printf("%d ", (int) tasksReady[i]->globalDeadline);
+    for (int i = 0; i < numTasks; i++) {
+        printf("%d ", (int) tasksReady[i]->globalDeadline); +id
     }
     // printf("\ntasksYield: ");
     // for (int i = 0; i < MAX_TASKS; i++) {
@@ -50,9 +50,17 @@ int edf_ready_task(EDFtask *task)
         tasksReady[j+1] = tasksReady[j];
     }
     tasksReady[i] = task;
+    task->status = EDF_READY;
+
     numTasks += 1;
 
-    xTaskNotifyGive(scheduler_handle);
+    if (i == 0)
+        xTaskNotifyGive(scheduler_handle);
+
+    TODO: postavi prioritet: PRIO_READY
+
+    // provjeriti return value
+    uint32_t notif = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
     return 0;
 }
@@ -66,6 +74,12 @@ void edf_completed(EDFtask *task)
     //         break;
     //     }
     // }
+
+    edf_unready_task(task);
+    task->status = EDF_SLEEP;
+    task->status = EDF_SLEEP;
+
+    TODO: postavi prioritet:  PRIO_SLEEP
     xTaskNotifyGive(scheduler_handle);
 }
 
@@ -77,12 +91,18 @@ void edf_task(void *pvParameter)
 
     TickType_t current_time = xTaskGetTickCount();
     while (1) {
+        printf("%d: [task: %d] ready", xTaskGetTickCount(), task->id);
         task->globalDeadline = current_time + pdMS_TO_TICKS(task->deadline);
         edf_ready_task(task);
-        // provjeriti return value
-        uint32_t notif = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        printf("%d: [task: %d] executing", xTaskGetTickCount(), task->id);
         task->task(task->params);
+        printf("%d: [task: %d] completed", xTaskGetTickCount(), task->id);
+
         edf_completed(task);
+
+        //ovdje možda provjeriti je li stigao na vrijeme
+
         vTaskDelayUntil(&current_time, pdMS_TO_TICKS(task->period));
         //current_time += pdMS_TO_TICKS(task->period) -> ovo radi prethodna funkcija!
     }
@@ -105,18 +125,19 @@ TaskHandle_t edf_set(TaskFunction_t task, void *params, size_t param_size, int p
     e->deadline = deadline;
     e->task = task;
     e->params = params;
-    xTaskCreate(edf_task, "EDF task", 2048, (void *) e, 5, &e->handle);
+    xTaskCreate(edf_task, "EDF task", 2048, (void *) e, PRIO_SLEEP, &e->handle);
     return e->handle;
 }
 
 // miče task iz ready arraya
 void edf_unready_task(EDFtask *task) 
 {
-    //miče se ali trebala bi biti prva?
+    FIXME miče se ali trebala bi biti prva? možda i nije prvi
     for (int j = 1; j < numTasks; j++) {
         tasksReady[j-1] = tasksReady[j];
     }
     numTasks -= 1;
+    tasksReady[numTasks] = NULL;
 
 }
 
@@ -126,9 +147,15 @@ void edf_scheduler_task(void *pvParameter)
     while (1) 
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        if (tasksReady[0]->deadline != 0) {
-            edf_unready_task(tasksReady[0]);
-            xTaskNotifyGive(tasksReady[0]->handle);
+        if (tasksReady[0] != NULL) {
+            FIXME: daj mu prioritet: PRIO_ACTIVE
+            if (tasksReady[0]->status != EDF_STARTED) {
+                tasksReady[0]->status = EDF_STARTED;
+                xTaskNotifyGive(tasksReady[0]->handle);
+            }
+            if (tasksReady[1] != NULL && tasksReady[1]->status == EDF_STARTED) {
+                FIXME: daj mu manji prioritet: PRIO_READY
+            }
         }
     }
 }
@@ -136,5 +163,5 @@ void edf_scheduler_task(void *pvParameter)
 // pokreće scheduler task
 void edf_start_scheduler(void)
 {
-    xTaskCreate(edf_scheduler_task, "EDF scheduler", 2048, NULL, configMAX_PRIORITIES-1, &scheduler_handle);
+    xTaskCreate(edf_scheduler_task, "EDF scheduler", 2048, NULL, PRIO_SCHEDULER, &scheduler_handle);
 }
